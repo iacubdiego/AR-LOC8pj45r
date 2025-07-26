@@ -150,7 +150,7 @@
     <!-- Escena AR -->
     <a-scene embedded arjs='sourceType: webcam; detectionMode: mono_and_matrix;' vr-mode-ui="enabled: false">
         <!-- Define tu marcador QR. Reemplaza 'path/to/your/qr_marker.patt' con la URL real de tu archivo .patt -->
-        <a-marker preset='custom' type='pattern' url='./marker.patt' timed-visibility="targetId: my-ar-image">
+        <a-marker preset='custom' type='pattern' url='./pattern-marher.patt' timed-visibility="targetId: my-ar-image">
             <!-- La imagen que se mostrará. Asegúrate de que el ID coincida con targetId en timed-visibility -->
             <!-- Puedes ajustar width y height para cambiar el tamaño relativo al marcador -->
             <a-image id="my-ar-image"
