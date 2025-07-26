@@ -150,11 +150,11 @@
     <!-- Escena AR -->
     <a-scene embedded arjs='sourceType: webcam; detectionMode: mono_and_matrix;' vr-mode-ui="enabled: false">
         <!-- Define tu marcador QR. Reemplaza 'path/to/your/qr_marker.patt' con la URL real de tu archivo .patt -->
-        <a-marker preset='custom' type='pattern' url='https://arjs-cors-proxy.herokuapp.com/https://raw.githubusercontent.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex/trex-image/trex.patt' timed-visibility="targetId: my-ar-image">
+        <a-marker preset='custom' type='pattern' url='./marker.patt' timed-visibility="targetId: my-ar-image">
             <!-- La imagen que se mostrará. Asegúrate de que el ID coincida con targetId en timed-visibility -->
             <!-- Puedes ajustar width y height para cambiar el tamaño relativo al marcador -->
             <a-image id="my-ar-image"
-                     src="https://placehold.co/500x300/4299e1/ffffff?text=Tu+Imagen+AR"
+                     src="./asset.jpeg"
                      width="1.5" height="0.9"
                      position="0 0 0"
                      rotation="-90 0 0"
