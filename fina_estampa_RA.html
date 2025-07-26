@@ -44,7 +44,7 @@
         }
         .info-panel {
             position: absolute;
-            bottom: 20px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
             background-color: rgba(0, 0, 0, 0.6);
@@ -56,24 +56,62 @@
             z-index: 999;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+        .reload-button-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+        }
+        .reload-button {
+            background-color: #f6ad55; /* Orange color for reload */
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: background-color 0.3s ease, transform 0.2s ease;
+            box-shadow: 0 4px 6px rgba(0 0 0 / 0.1);
+        }
+        .reload-button:hover {
+            background-color: #dd6b20; /* Darker orange on hover */
+            transform: translateY(-2px);
+        }
     </style>
 </head>
 <body>
-    <!-- Contenedor para mensajes al usuario, reemplaza alert() -->
+    <!-- Message box for user feedback -->
     <div id="message-box" class="hidden">
         <p id="message-text"></p>
         <button onclick="hideMessageBox()">Entendido</button>
     </div>
 
-    <!-- Panel de información para el usuario -->
+    <!-- Information panel for the user -->
     <div class="info-panel">
         <p>Apunta la cámara a tu marcador QR. La imagen aparecerá por 30 segundos.</p>
-        <p>Asegúrate de haber generado y alojado tu archivo .patt.</p>
+        <p>Asegúrate de haber generado y alojado tu archivo .patt y tu imagen.</p>
     </div>
 
-    <!-- Componente personalizado para controlar la visibilidad de la imagen -->
+    <!-- Reload button -->
+    <div class="reload-button-container">
+        <button class="reload-button" onclick="location.reload()">Recargar Página</button>
+    </div>
+
     <script>
-        // Función para mostrar mensajes personalizados en lugar de alert()
+        // GLOBAL VARIABLES for easy modification
+        // URL of your marker pattern file (.patt)
+        // IMPORTANT: Replace this with the actual URL of your generated .patt file.
+        // If hosted on the same domain, use a relative path like './my_qr_marker.patt'
+        const QR_MARKER_PATTERN_URL = './pattern-marker.patt';
+
+        // URL of the image to be displayed
+        // IMPORTANT: Replace this with the actual URL of your image.
+        // If hosted on the same domain, use a relative path like './my_image.png'
+        const AR_IMAGE_SRC = './asset.jpeg';
+
+        // Function to show custom messages instead of alert()
         function showMessageBox(message) {
             const messageBox = document.getElementById('message-box');
             const messageText = document.getElementById('message-text');
@@ -81,64 +119,67 @@
             messageBox.style.display = 'block';
         }
 
-        // Función para ocultar el mensaje
+        // Function to hide the message
         function hideMessageBox() {
             const messageBox = document.getElementById('message-box');
             messageBox.style.display = 'none';
         }
 
+        // Custom A-Frame component to control image visibility based on marker detection and a timer
         AFRAME.registerComponent('timed-visibility', {
             schema: {
-                duration: {type: 'number', default: 30000}, // Duración en milisegundos (30 segundos)
-                targetId: {type: 'string', default: ''} // ID de la entidad a controlar
+                duration: {type: 'number', default: 30000}, // Duration in milliseconds (30 seconds)
+                targetId: {type: 'string', default: ''} // ID of the entity to control
             },
 
             init: function () {
                 this.timer = null;
                 this.targetEl = null;
-                this.markerFound = false; // Estado para saber si el marcador está visible
+                this.markerFound = false; // State to track if the marker is currently visible
 
-                // Obtener la entidad objetivo una vez que el DOM esté listo
+                // Get the target entity once the DOM is ready
                 this.el.sceneEl.addEventListener('loaded', () => {
                     this.targetEl = document.getElementById(this.data.targetId);
                     if (!this.targetEl) {
-                        console.error('timed-visibility: No se encontró la entidad objetivo con ID:', this.data.targetId);
+                        console.error('timed-visibility: Target entity with ID not found:', this.data.targetId);
                         showMessageBox('Error: No se encontró la entidad de la imagen. Asegúrate de que el ID es correcto.');
                     } else {
-                        // Inicialmente ocultar la imagen
+                        // Initially hide the image
                         this.targetEl.setAttribute('visible', false);
                     }
                 });
 
-                // Escuchar cuando el marcador es detectado
+                // Listen for when the marker is detected
                 this.el.addEventListener('markerFound', () => {
                     if (this.targetEl && !this.markerFound) {
                         this.markerFound = true;
-                        this.targetEl.setAttribute('visible', true); // Mostrar la imagen
+                        this.targetEl.setAttribute('visible', true); // Show the image
                         console.log('Marcador encontrado. Imagen visible.');
+                        showMessageBox('¡Marcador QR detectado! Imagen visible por 30 segundos.');
 
-                        // Limpiar cualquier temporizador anterior y establecer uno nuevo
+                        // Clear any previous timer and set a new one
                         if (this.timer) {
                             clearTimeout(this.timer);
                         }
                         this.timer = setTimeout(() => {
                             if (this.targetEl) {
-                                this.targetEl.setAttribute('visible', false); // Ocultar la imagen después de la duración
+                                this.targetEl.setAttribute('visible', false); // Hide the image after the duration
                                 console.log('Tiempo agotado. Imagen oculta.');
+                                showMessageBox('Tiempo agotado. Imagen oculta.');
                             }
-                            this.timer = null; // Resetear el temporizador
+                            this.timer = null; // Reset the timer
                         }, this.data.duration);
                     }
                 });
 
-                // Escuchar cuando el marcador se pierde
+                // Listen for when the marker is lost
                 this.el.addEventListener('markerLost', () => {
                     if (this.targetEl && this.markerFound) {
                         this.markerFound = false;
-                        this.targetEl.setAttribute('visible', false); // Ocultar la imagen inmediatamente si el marcador se pierde
+                        this.targetEl.setAttribute('visible', false); // Hide the image immediately if the marker is lost
                         console.log('Marcador perdido. Imagen oculta.');
                         if (this.timer) {
-                            clearTimeout(this.timer); // Cancelar el temporizador si el marcador se pierde
+                            clearTimeout(this.timer); // Cancel the timer if the marker is lost
                             this.timer = null;
                         }
                     }
@@ -147,23 +188,42 @@
         });
     </script>
 
-    <!-- Escena AR -->
+    <!-- AR Scene -->
     <a-scene embedded arjs='sourceType: webcam; detectionMode: mono_and_matrix;' vr-mode-ui="enabled: false">
-        <!-- Define tu marcador QR. Reemplaza 'path/to/your/qr_marker.patt' con la URL real de tu archivo .patt -->
-        <a-marker preset='custom' type='pattern' url='./pattern-marher.patt' timed-visibility="targetId: my-ar-image">
-            <!-- La imagen que se mostrará. Asegúrate de que el ID coincida con targetId en timed-visibility -->
-            <!-- Puedes ajustar width y height para cambiar el tamaño relativo al marcador -->
+        <!-- Define your QR marker. The URL is now taken from the global variable. -->
+        <a-marker preset='custom' type='pattern' id="my-qr-marker" timed-visibility="targetId: my-ar-image">
+            <!-- The image to be displayed. The src is now taken from the global variable. -->
             <a-image id="my-ar-image"
-                     src="./asset.jpeg"
+                     src="" <!-- src will be set dynamically by JavaScript -->
                      width="1.5" height="0.9"
                      position="0 0 0"
                      rotation="-90 0 0"
-                     visible="false"> <!-- Inicialmente oculta -->
+                     visible="false"> <!-- Initially hidden -->
             </a-image>
         </a-marker>
 
-        <!-- Cámara AR -->
+        <!-- AR Camera -->
         <a-entity camera></a-entity>
     </a-scene>
+
+    <script>
+        // Set the src and url attributes after the A-Frame scene is loaded
+        // This ensures the DOM elements are available
+        document.addEventListener('DOMContentLoaded', () => {
+            const markerEl = document.getElementById('my-qr-marker');
+            if (markerEl) {
+                markerEl.setAttribute('url', QR_MARKER_PATTERN_URL);
+            } else {
+                console.error('Marker element not found.');
+            }
+
+            const imageEl = document.getElementById('my-ar-image');
+            if (imageEl) {
+                imageEl.setAttribute('src', AR_IMAGE_SRC);
+            } else {
+                console.error('Image element not found.');
+            }
+        });
+    </script>
 </body>
 </html>
