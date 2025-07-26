@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>AR con QR y A-Frame</title>
+    <title>Proyecto AR con QR, Imagen y Botones</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <!-- AR.js dependency for marker detection -->
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -10,9 +11,9 @@
         body {
             font-family: 'Inter', sans-serif;
             margin: 0;
-            overflow: hidden; /* Evita el scroll */
-            background-color: #1a202c; /* Color de fondo oscuro */
-            color: #e2e8f0; /* Color de texto claro */
+            overflow: hidden; /* Prevent scrolling */
+            background-color: #1a202c; /* Dark background color */
+            color: #e2e8f0; /* Light text color */
         }
         #message-box {
             position: absolute;
@@ -24,7 +25,7 @@
             border-radius: 10px;
             text-align: center;
             z-index: 1000;
-            display: none; /* Oculto por defecto */
+            display: none; /* Hidden by default */
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             border: 1px solid #4a5568;
         }
@@ -56,14 +57,18 @@
             z-index: 999;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-        .reload-button-container {
+        .button-container {
             position: absolute;
             bottom: 20px;
             left: 50%;
             transform: translateX(-50%);
             z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* Space between buttons */
+            align-items: center;
         }
-        .reload-button {
+        .button-style {
             background-color: #f6ad55; /* Orange color for reload */
             color: white;
             padding: 12px 25px;
@@ -75,9 +80,15 @@
             transition: background-color 0.3s ease, transform 0.2s ease;
             box-shadow: 0 4px 6px rgba(0 0 0 / 0.1);
         }
-        .reload-button:hover {
+        .button-style:hover {
             background-color: #dd6b20; /* Darker orange on hover */
             transform: translateY(-2px);
+        }
+        .link-button {
+            background-color: #48bb78; /* Green color for link button */
+        }
+        .link-button:hover {
+            background-color: #38a169; /* Darker green on hover */
         }
     </style>
 </head>
@@ -91,25 +102,33 @@
     <!-- Information panel for the user -->
     <div class="info-panel">
         <p>Apunta la cámara a tu marcador QR. La imagen aparecerá por 30 segundos.</p>
-        <p>Asegúrate de haber generado y alojado tu archivo .patt y tu imagen.</p>
+        <p>Usa los botones para interactuar.</p>
     </div>
 
-    <!-- Reload button -->
-    <div class="reload-button-container">
-        <button class="reload-button" onclick="location.reload()">Recargar Página</button>
+    <!-- Buttons Container -->
+    <div class="button-container">
+        <button id="reloadButton" class="button-style" onclick="console.log('Botón Recargar Página presionado.'); location.reload()">Recargar Página</button>
+        <button id="linkButton" class="button-style link-button">Ir a URL</button>
     </div>
 
     <script>
         // GLOBAL VARIABLES for easy modification
         // URL of your marker pattern file (.patt)
-        // IMPORTANT: Replace this with the actual URL of your generated .patt file.
-        // If hosted on the same domain, use a relative path like './my_qr_marker.patt'
-        const QR_MARKER_PATTERN_URL = './pattern-marker.patt';
+        // IMPORTANT: Replace './my_qr_marker.patt' with the actual relative path to your generated .patt file.
+        // Example: If your QR code pattern file is named 'my_marker.patt' and it's in the same folder as this HTML file, use './my_marker.patt'
+        const QR_MARKER_PATTERN_URL = './my_qr_marker.patt'; 
 
         // URL of the image to be displayed
-        // IMPORTANT: Replace this with the actual URL of your image.
-        // If hosted on the same domain, use a relative path like './my_image.png'
-        const AR_IMAGE_SRC = './asset.jpeg';
+        // IMPORTANT: Replace './my_image.png' with the actual relative path to your image file.
+        // Example: If your image file is named 'ar_content.png' and it's in the same folder as this HTML file, use './ar_content.png'
+        const AR_IMAGE_SRC = './my_image.png'; 
+
+        // Duration the image is visible in milliseconds (30 seconds)
+        const DISPLAY_DURATION_MS = 30000;
+
+        // URL for the new link button
+        // IMPORTANT: Replace 'https://www.google.com' with your desired URL.
+        const LINK_BUTTON_URL = 'https://www.google.com'; // Default to Google
 
         // Function to show custom messages instead of alert()
         function showMessageBox(message) {
@@ -125,76 +144,88 @@
             messageBox.style.display = 'none';
         }
 
-        // Custom A-Frame component to control image visibility based on marker detection and a timer
+        // A-Frame component to control image visibility based on marker detection and a timer
         AFRAME.registerComponent('timed-visibility', {
             schema: {
-                duration: {type: 'number', default: 30000}, // Duration in milliseconds (30 seconds)
+                duration: {type: 'number', default: DISPLAY_DURATION_MS}, // Duration from global variable
                 targetId: {type: 'string', default: ''} // ID of the entity to control
             },
 
             init: function () {
                 this.timer = null;
                 this.targetEl = null;
-                this.markerFound = false; // State to track if the marker is currently visible
+                this.markerFoundInitially = false; // State to track if the marker has been found at least once
 
-                // Get the target entity once the DOM is ready
+                const linkButton = document.getElementById('linkButton');
+
+                // The link button is now always enabled, no need to set its initial state here
+                // linkButton.disabled = true; // Removed this line
+
+                // Get the target entity and set its src once the A-Frame scene is loaded
                 this.el.sceneEl.addEventListener('loaded', () => {
+                    // Set marker URL from global variable
+                    this.el.setAttribute('url', QR_MARKER_PATTERN_URL);
+
+                    // Get and set image src from global variable
                     this.targetEl = document.getElementById(this.data.targetId);
                     if (!this.targetEl) {
                         console.error('timed-visibility: Target entity with ID not found:', this.data.targetId);
                         showMessageBox('Error: No se encontró la entidad de la imagen. Asegúrate de que el ID es correcto.');
                     } else {
+                        this.targetEl.setAttribute('src', AR_IMAGE_SRC);
                         // Initially hide the image
                         this.targetEl.setAttribute('visible', false);
                     }
+
+                    // Add event listener for the link button
+                    linkButton.onclick = () => {
+                        window.open(LINK_BUTTON_URL, '_blank'); // Open URL in new tab
+                    };
                 });
 
                 // Listen for when the marker is detected
                 this.el.addEventListener('markerFound', () => {
-                    if (this.targetEl && !this.markerFound) {
-                        this.markerFound = true;
+                    if (this.targetEl && !this.markerFoundInitially) {
+                        this.markerFoundInitially = true; // Mark as found
                         this.targetEl.setAttribute('visible', true); // Show the image
+                        // linkButton.disabled = false; // Removed this line, as button is always enabled
                         console.log('Marcador encontrado. Imagen visible.');
-                        showMessageBox('¡Marcador QR detectado! Imagen visible por 30 segundos.');
+                        showMessageBox('¡Marcador QR detectado! Imagen visible por ' + (this.data.duration / 1000) + ' segundos.');
 
-                        // Clear any previous timer and set a new one
-                        if (this.timer) {
-                            clearTimeout(this.timer);
+                        // Start the timer ONLY if it's not already running
+                        if (!this.timer) {
+                            this.timer = setTimeout(() => {
+                                if (this.targetEl) {
+                                    this.targetEl.setAttribute('visible', false); // Hide the image after the duration
+                                    // linkButton.disabled = true; // Removed this line, as button is always enabled
+                                    console.log('Tiempo agotado. Imagen oculta.');
+                                    showMessageBox('Tiempo agotado. Imagen oculta.');
+                                }
+                                this.timer = null; // Reset the timer
+                                this.markerFoundInitially = false; // Reset for next detection
+                            }, this.data.duration);
                         }
-                        this.timer = setTimeout(() => {
-                            if (this.targetEl) {
-                                this.targetEl.setAttribute('visible', false); // Hide the image after the duration
-                                console.log('Tiempo agotado. Imagen oculta.');
-                                showMessageBox('Tiempo agotado. Imagen oculta.');
-                            }
-                            this.timer = null; // Reset the timer
-                        }, this.data.duration);
                     }
                 });
 
                 // Listen for when the marker is lost
                 this.el.addEventListener('markerLost', () => {
-                    if (this.targetEl && this.markerFound) {
-                        this.markerFound = false;
-                        this.targetEl.setAttribute('visible', false); // Hide the image immediately if the marker is lost
-                        console.log('Marcador perdido. Imagen oculta.');
-                        if (this.timer) {
-                            clearTimeout(this.timer); // Cancel the timer if the marker is lost
-                            this.timer = null;
-                        }
-                    }
+                    // Do NOT hide the image or clear the timer here.
+                    // The image will remain visible until the 30-second timer expires.
+                    console.log('Marcador perdido de vista. La imagen permanecerá visible hasta que expire el temporizador.');
+                    // linkButton.disabled = true; // Removed this line, as button is always enabled
                 });
             }
         });
     </script>
 
-    <!-- AR Scene -->
+    <!-- A-Frame Scene -->
     <a-scene embedded arjs='sourceType: webcam; detectionMode: mono_and_matrix;' vr-mode-ui="enabled: false">
-        <!-- Define your QR marker. The URL is now taken from the global variable. -->
+        <!-- Define your QR marker. The URL is taken from the global variable. -->
         <a-marker preset='custom' type='pattern' id="my-qr-marker" timed-visibility="targetId: my-ar-image">
-            <!-- The image to be displayed. The src is now taken from the global variable. -->
+            <!-- The image to be displayed. The src will be set dynamically by JavaScript. -->
             <a-image id="my-ar-image"
-                     src="" <!-- src will be set dynamically by JavaScript -->
+                     src=""
                      width="1.5" height="0.9"
                      position="0 0 0"
                      rotation="-90 0 0"
@@ -205,25 +236,5 @@
         <!-- AR Camera -->
         <a-entity camera></a-entity>
     </a-scene>
-
-    <script>
-        // Set the src and url attributes after the A-Frame scene is loaded
-        // This ensures the DOM elements are available
-        document.addEventListener('DOMContentLoaded', () => {
-            const markerEl = document.getElementById('my-qr-marker');
-            if (markerEl) {
-                markerEl.setAttribute('url', QR_MARKER_PATTERN_URL);
-            } else {
-                console.error('Marker element not found.');
-            }
-
-            const imageEl = document.getElementById('my-ar-image');
-            if (imageEl) {
-                imageEl.setAttribute('src', AR_IMAGE_SRC);
-            } else {
-                console.error('Image element not found.');
-            }
-        });
-    </script>
 </body>
 </html>
