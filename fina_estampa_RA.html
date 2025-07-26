@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AR con QR y A-Frame</title>
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* Evita el scroll */
+            background-color: #1a202c; /* Color de fondo oscuro */
+            color: #e2e8f0; /* Color de texto claro */
+        }
+        #message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            z-index: 1000;
+            display: none; /* Oculto por defecto */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #4a5568;
+        }
+        #message-box button {
+            background-color: #4299e1;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 15px;
+            font-size: 1rem;
+            transition: background-color 0.3s ease;
+        }
+        #message-box button:hover {
+            background-color: #3182ce;
+        }
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
+            color: #cbd5e0;
+            font-size: 0.9rem;
+            text-align: center;
+            z-index: 999;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <!-- Contenedor para mensajes al usuario, reemplaza alert() -->
+    <div id="message-box" class="hidden">
+        <p id="message-text"></p>
+        <button onclick="hideMessageBox()">Entendido</button>
+    </div>
+
+    <!-- Panel de información para el usuario -->
+    <div class="info-panel">
+        <p>Apunta la cámara a tu marcador QR. La imagen aparecerá por 30 segundos.</p>
+        <p>Asegúrate de haber generado y alojado tu archivo .patt.</p>
+    </div>
+
+    <!-- Componente personalizado para controlar la visibilidad de la imagen -->
+    <script>
+        // Función para mostrar mensajes personalizados en lugar de alert()
+        function showMessageBox(message) {
+            const messageBox = document.getElementById('message-box');
+            const messageText = document.getElementById('message-text');
+            messageText.textContent = message;
+            messageBox.style.display = 'block';
+        }
+
+        // Función para ocultar el mensaje
+        function hideMessageBox() {
+            const messageBox = document.getElementById('message-box');
+            messageBox.style.display = 'none';
+        }
+
+        AFRAME.registerComponent('timed-visibility', {
+            schema: {
+                duration: {type: 'number', default: 30000}, // Duración en milisegundos (30 segundos)
+                targetId: {type: 'string', default: ''} // ID de la entidad a controlar
+            },
+
+            init: function () {
+                this.timer = null;
+                this.targetEl = null;
+                this.markerFound = false; // Estado para saber si el marcador está visible
+
+                // Obtener la entidad objetivo una vez que el DOM esté listo
+                this.el.sceneEl.addEventListener('loaded', () => {
+                    this.targetEl = document.getElementById(this.data.targetId);
+                    if (!this.targetEl) {
+                        console.error('timed-visibility: No se encontró la entidad objetivo con ID:', this.data.targetId);
+                        showMessageBox('Error: No se encontró la entidad de la imagen. Asegúrate de que el ID es correcto.');
+                    } else {
+                        // Inicialmente ocultar la imagen
+                        this.targetEl.setAttribute('visible', false);
+                    }
+                });
+
+                // Escuchar cuando el marcador es detectado
+                this.el.addEventListener('markerFound', () => {
+                    if (this.targetEl && !this.markerFound) {
+                        this.markerFound = true;
+                        this.targetEl.setAttribute('visible', true); // Mostrar la imagen
+                        console.log('Marcador encontrado. Imagen visible.');
+
+                        // Limpiar cualquier temporizador anterior y establecer uno nuevo
+                        if (this.timer) {
+                            clearTimeout(this.timer);
+                        }
+                        this.timer = setTimeout(() => {
+                            if (this.targetEl) {
+                                this.targetEl.setAttribute('visible', false); // Ocultar la imagen después de la duración
+                                console.log('Tiempo agotado. Imagen oculta.');
+                            }
+                            this.timer = null; // Resetear el temporizador
+                        }, this.data.duration);
+                    }
+                });
+
+                // Escuchar cuando el marcador se pierde
+                this.el.addEventListener('markerLost', () => {
+                    if (this.targetEl && this.markerFound) {
+                        this.markerFound = false;
+                        this.targetEl.setAttribute('visible', false); // Ocultar la imagen inmediatamente si el marcador se pierde
+                        console.log('Marcador perdido. Imagen oculta.');
+                        if (this.timer) {
+                            clearTimeout(this.timer); // Cancelar el temporizador si el marcador se pierde
+                            this.timer = null;
+                        }
+                    }
+                });
+            }
+        });
+    </script>
+
+    <!-- Escena AR -->
+    <a-scene embedded arjs='sourceType: webcam; detectionMode: mono_and_matrix;' vr-mode-ui="enabled: false">
+        <!-- Define tu marcador QR. Reemplaza 'path/to/your/qr_marker.patt' con la URL real de tu archivo .patt -->
+        <a-marker preset='custom' type='pattern' url='https://arjs-cors-proxy.herokuapp.com/https://raw.githubusercontent.com/AR-js-org/AR.js/master/aframe/examples/image-tracking/nft/trex/trex-image/trex.patt' timed-visibility="targetId: my-ar-image">
+            <!-- La imagen que se mostrará. Asegúrate de que el ID coincida con targetId en timed-visibility -->
+            <!-- Puedes ajustar width y height para cambiar el tamaño relativo al marcador -->
+            <a-image id="my-ar-image"
+                     src="https://placehold.co/500x300/4299e1/ffffff?text=Tu+Imagen+AR"
+                     width="1.5" height="0.9"
+                     position="0 0 0"
+                     rotation="-90 0 0"
+                     visible="false"> <!-- Inicialmente oculta -->
+            </a-image>
+        </a-marker>
+
+        <!-- Cámara AR -->
+        <a-entity camera></a-entity>
+    </a-scene>
+</body>
+</html>
